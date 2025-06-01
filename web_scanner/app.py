@@ -1,15 +1,17 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from zapv2 import ZAPv2
 import time
+import os
 
-app = Flask(__name__)
-CORS(app)  # This enables CORS for all routes
+app = Flask(__name__, static_folder='static', static_url_path='')
+CORS(app)
 
+# ZAP API setup
 api_key = '2pijunbat129mj3qjktl5sk5sl'
 zap = ZAPv2(apikey=api_key, proxies={'http': 'http://127.0.0.1:8080', 'https': 'http://127.0.0.1:8080'})
 
-@app.route("/scan", methods=['GET', 'POST'])
+@app.route("/scan", methods=['POST'])
 def scan():
     url = request.json.get("url")
     if not url:
@@ -24,14 +26,21 @@ def scan():
         time.sleep(5)
 
     alerts = zap.core.alerts(baseurl=url)
-    results = []
-    for alert in alerts:
-        results.append({
-            "alert": alert.get("alert"),
-            "description": alert.get("description"),
-        })
+    results = [{
+        "alert": alert.get("alert"),
+        "description": alert.get("description")
+    } for alert in alerts]
 
     return jsonify({"results": results})
+
+# Route to serve React frontend
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == "__main__":
     app.run(port=5000)
